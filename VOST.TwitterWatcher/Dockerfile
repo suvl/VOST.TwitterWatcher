@@ -6,7 +6,7 @@ COPY . /src
 
 WORKDIR /src/VOST.TwitterWatcher
 
-RUN dotnet publish -c Release -r linux-x64 
+RUN dotnet publish -c Release -o publish
 
 FROM mcr.microsoft.com/dotnet/core/aspnet:2.2-alpine AS RUNNER
 
@@ -16,4 +16,4 @@ WORKDIR /app
 
 ENV ASPNETCORE_ENVIRONMENT=Production
 
-CMD [""]
+CMD ["dotnet", "VOST.TwitterWatcher.dll"]
