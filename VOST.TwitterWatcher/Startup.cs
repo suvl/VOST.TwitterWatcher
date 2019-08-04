@@ -38,6 +38,15 @@ namespace VOST.TwitterWatcher
             services.AddSingleton<Repo.TweetRepository>();
             services.AddSingleton<Repo.IRepository<Repo.TweetRecord>, Repo.TweetRepository>(
                 provider => provider.GetRequiredService<Repo.TweetRepository>());
+
+            services.AddSwaggerGen(c =>
+            {
+                c.SwaggerDoc("v1", new Swashbuckle.AspNetCore.Swagger.Info
+                {
+                    Title = "VOST Twitter Watcher",
+                    Version = "v1"
+                });
+            });
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
@@ -51,6 +60,9 @@ namespace VOST.TwitterWatcher
             {
                 app.UseExceptionHandler("/Error");
             }
+
+            app.UseSwagger();
+            app.UseSwaggerUI(c => c.SwaggerEndpoint("/swagger/v1/swagger.json", "VOST Twitter Watcher API"));
 
             app.UseStaticFiles();
             app.UseSpaStaticFiles();
