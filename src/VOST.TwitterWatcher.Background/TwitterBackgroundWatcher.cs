@@ -120,6 +120,8 @@ namespace VOST.TwitterWatcher.Background
         {
             _currentSubscription?.Dispose();
 
+            if (_cts.IsCancellationRequested) return;
+
             var observable = await Context.Streaming
                 .WithCancellation(_cts.Token)
                 .Where(streaming =>
