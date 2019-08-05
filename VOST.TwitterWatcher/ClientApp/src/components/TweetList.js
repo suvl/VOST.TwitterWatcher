@@ -3,11 +3,21 @@ import React, { Component } from 'react';
 export class TweetList extends Component {
     constructor(props) {
         super(props);
-        this.state = {loading: true, tweets: []}
+        this.state = {
+            loading: true, 
+            tweets: [],
+            page: 0,
+            pageSize: 100
+        }
     }
 
     componentDidMount() {
-        fetch("/api/v1/tweets")
+        let url = "/api/v1/tweets?page=" +
+                    this.state.page +
+                    "&pageSize=" +
+                    this.state.pageSize;
+
+        fetch(url)
             .then(res => res.json())
             .then(data => {
                 this.setState({ loading: false, tweets: data });
@@ -30,7 +40,7 @@ export class TweetList extends Component {
                     </thead>
                     <tbody>
                         {this.state.tweets.map(t => 
-                            <tr id={t.id}>
+                            <tr key={t.id}>
                                 <td>{t.status.createdAt}</td>
                                 <td>{t.status.text}</td>
                                 <td>{t.status.user.name}</td>

@@ -42,7 +42,7 @@ export class FollowedKeywords extends Component {
         return <div className="mb-2">
                 <span>{this.state.error} </span>
                 {this.state.loading ? <p>loading</p> : this.state.keywords.map(k => 
-                    <Button 
+                    <Button key={k.keyword}
                         className="mr-2" 
                         color={k.enabled ? "primary" : "secondary"}
                         onClick={(e) => this.toggle(e, k.keyword)} >{k.keyword}</Button> 
