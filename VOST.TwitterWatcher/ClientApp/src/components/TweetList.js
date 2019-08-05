@@ -25,6 +25,7 @@ export class TweetList extends Component {
                             <th>Time</th>
                             <th>Tweet</th>
                             <th>User</th>
+                            <th>Loc.</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -33,6 +34,8 @@ export class TweetList extends Component {
                                 <td>{t.status.createdAt}</td>
                                 <td>{t.status.text}</td>
                                 <td>{t.status.user.name}</td>
+                                <td>{ t.status.place !== null && t.status.place.name !== null
+                                        ? t.status.place.name : "" }</td>
                             </tr>
                         )}
                     </tbody>
