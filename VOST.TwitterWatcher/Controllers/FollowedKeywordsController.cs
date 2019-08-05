@@ -7,10 +7,10 @@ using System.Threading.Tasks;
 namespace VOST.TwitterWatcher.Controllers
 {
     /// <summary>
-    /// The Followed Keyworkds controller
+    /// The Followed Keywords controller
     /// </summary>
     /// <seealso cref="Microsoft.AspNetCore.Mvc.Controller" />
-    [Route("keywords")]
+    [Route("api/v1/keywords")]
     public class FollowedKeywordsController : Controller
     {
         private readonly Core.Interfaces.IKeywordRepository _repository;
