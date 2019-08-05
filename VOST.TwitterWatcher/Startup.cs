@@ -7,16 +7,26 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace VOST.TwitterWatcher
 {
+    /// <summary>
+    /// CI/CD and configurations
+    /// </summary>
     public class Startup
     {
+        /// <summary>
+        /// Startup .ctor
+        /// </summary>
+        /// <param name="configuration">The app's configuration.</param>
         public Startup(IConfiguration configuration)
         {
-            Configuration = configuration;
+            _configuration = configuration;
         }
 
-        public IConfiguration Configuration { get; }
+        private IConfiguration _configuration { get; }
 
-        // This method gets called by the runtime. Use this method to add services to the container.
+        /// <summary>
+        /// DI configurations
+        /// </summary>
+        /// <param name="services">The DI container.</param>
         public void ConfigureServices(IServiceCollection services)
         {
             services.AddMvc().SetCompatibilityVersion(CompatibilityVersion.Version_2_2);
@@ -28,9 +38,9 @@ namespace VOST.TwitterWatcher
             });
 
             services.Configure<Core.Configuration.TwitterApiConfiguration>(
-                Configuration.GetSection("TwitterApi"));
+                _configuration.GetSection("TwitterApi"));
             services.Configure<Core.Configuration.MongoDbClientConfiguration>(
-                Configuration.GetSection("MongoDb"));
+                _configuration.GetSection("MongoDb"));
 
             services.AddSingleton<Core.Interfaces.ITwitterBackgroundWatcher, Background.TwitterBackgroundWatcher>();
             services.AddHostedService<Background.TwitterBackgroundWatcherHostedService>();
@@ -49,7 +59,11 @@ namespace VOST.TwitterWatcher
             });
         }
 
-        // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
+        /// <summary>
+        /// The DI and pipeline execution.
+        /// </summary>
+        /// <param name="app">The aspnet core application.</param>
+        /// <param name="env">The web hosting environment.</param>
         public void Configure(IApplicationBuilder app, IHostingEnvironment env)
         {
             if (env.IsDevelopment())

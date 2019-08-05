@@ -1,5 +1,5 @@
 {
-  "name": "VOST.TwitterWatcher",
+  "name": "vost.twitterwatcher",
   "version": "0.1.0",
   "private": true,
   "dependencies": {
@@ -15,9 +15,8 @@
   },
   "devDependencies": {
     "ajv": "^6.10.2",
-    "babel-eslint": "^10.0.2",
     "cross-env": "^5.2.0",
-    "eslint": "^6.1.0",
+    "eslint": "^5.16.0",
     "eslint-config-react-app": "^4.0.1",
     "eslint-plugin-flowtype": "^3.13.0",
     "eslint-plugin-import": "^2.18.2",
