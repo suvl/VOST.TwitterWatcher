@@ -2,17 +2,17 @@
 using Microsoft.Extensions.Logging;
 using System;
 using System.Threading.Tasks;
-using VOST.TwitterWatcher.Repo;
+using VOST.TwitterWatcher.Core.Interfaces;
 
 namespace VOST.TwitterWatcher.Controllers
 {
     [Route("api/v1/tweets")]
     public class TweetRecordsController : Controller
     {
-        private readonly TweetRepository _repository;
+        private readonly ITweetRepository _repository;
         private readonly ILogger _logger;
 
-        public TweetRecordsController(TweetRepository repository, ILogger<TweetRecordsController> logger)
+        public TweetRecordsController(ITweetRepository repository, ILogger<TweetRecordsController> logger)
         {
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
             _repository = repository ?? throw new ArgumentNullException(nameof(repository));
