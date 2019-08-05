@@ -9,6 +9,7 @@ using Microsoft.Extensions.Options;
 using VOST.TwitterWatcher.Repo;
 using System.Collections.Generic;
 using VOST.TwitterWatcher.Core.Mapping;
+using System.Text;
 
 namespace VOST.TwitterWatcher.Background
 {
@@ -45,7 +46,8 @@ namespace VOST.TwitterWatcher.Background
 
         private volatile IDisposable _currentSubscription = null;
 
-        private readonly IRepository<TweetRecord> _repository;
+        private readonly Core.Interfaces.ITweetRepository _repository;
+        private readonly Core.Interfaces.IKeywordRepository _keywordRepository;
 
         private readonly string _keywords;
 
@@ -62,11 +64,13 @@ namespace VOST.TwitterWatcher.Background
         /// </exception>
         public TwitterBackgroundWatcher(
             IOptions<Core.Configuration.TwitterApiConfiguration> twitterApiConfiguration,
-            IRepository<Repo.TweetRecord> repository,
+            Core.Interfaces.ITweetRepository repository,
+            Core.Interfaces.IKeywordRepository keywordRepository,
             ILogger<TwitterBackgroundWatcher> logger)
         {
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
             _repository = repository ?? throw new ArgumentNullException(nameof(repository));
+            _keywordRepository = keywordRepository ?? throw new ArgumentNullException(nameof(keywordRepository));
 
             if (twitterApiConfiguration.Value == null) throw new ArgumentNullException(nameof(twitterApiConfiguration));
 
@@ -122,22 +126,23 @@ namespace VOST.TwitterWatcher.Background
 
             if (_cts.IsCancellationRequested) return;
 
+            var keywords = await _keywordRepository.GetFollowedKeywords();
+
+            if (keywords.Count == 0) return;
+
+            var track = string.Join(",", keywords.Select(k => k.Keyword));
+
             var observable = await Context.Streaming
                 .WithCancellation(_cts.Token)
                 .Where(streaming =>
                     streaming.Type == StreamingType.Filter &&
-                    streaming.Track == _keywords)
+                    streaming.Track == track)
                 .ToObservableAsync();
 
             _logger.LogDebug("Subscribing to stream data");
 
             _currentSubscription = observable.Subscribe(
                 async stream => await HandleStream(stream),
-                ex =>
-                {
-                    _logger.LogError(ex, "Subscription error.");
-                    throw ex;
-                },
                 () => _logger.LogInformation("Stream subscription completed"));
         }
 

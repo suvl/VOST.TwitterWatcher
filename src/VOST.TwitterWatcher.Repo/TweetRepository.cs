@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using VOST.TwitterWatcher.Core.Configuration;
 
 using MongoDB.Driver;
+using VOST.TwitterWatcher.Core.Interfaces;
 
 namespace VOST.TwitterWatcher.Repo
 {
@@ -12,14 +13,14 @@ namespace VOST.TwitterWatcher.Repo
     /// The Tweet record repository.
     /// </summary>
     /// <seealso cref="VOST.TwitterWatcher.Repo.MongoRepository{VOST.TwitterWatcher.Repo.TweetRecord}" />
-    public class TweetRepository : MongoRepository<TweetRecord>
+    public class TweetRepository : MongoRepository<TweetRecord>, ITweetRepository
     {
         /// <summary>
         /// Initializes a new instance of the <see cref="TweetRepository"/> class.
         /// </summary>
         /// <param name="configuration">The configuration.</param>
         /// <param name="logger">The logger.</param>
-        public TweetRepository(IOptions<MongoDbClientConfiguration> configuration, ILogger<TweetRepository> logger) 
+        public TweetRepository(IOptions<MongoDbClientConfiguration> configuration, ILogger<TweetRepository> logger)
             : base(configuration, logger)
         {
         }

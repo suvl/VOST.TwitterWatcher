@@ -31,7 +31,11 @@ namespace VOST.TwitterWatcher.Controllers
             if (before.HasValue && before.Value > DateTime.Now) return StatusCode(400, "before cannot be in the future");
             if (after.HasValue && after.Value > DateTime.Now) return StatusCode(400, "after cannot be in the future");
 
+            _logger.LogInformation("GetTweetRecords page={0} pageSize={1} before={2} after={3}", page, pageSize, before, after);
+
             var results = await _repository.GetRecordsPaged(page, pageSize, before, after);
+
+            _logger.LogDebug("GetTweetRecords result={0}", results.Count);
 
             return new OkObjectResult(results);
         }

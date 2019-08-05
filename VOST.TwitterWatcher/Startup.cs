@@ -32,12 +32,12 @@ namespace VOST.TwitterWatcher
             services.Configure<Core.Configuration.MongoDbClientConfiguration>(
                 Configuration.GetSection("MongoDb"));
 
-            //services.AddSingleton<Core.Interfaces.ITwitterBackgroundWatcher, Background.TwitterBackgroundWatcher>();
-            services.AddHostedService<Background.TwitterBackgroundWatcher>();
+            services.AddSingleton<Core.Interfaces.ITwitterBackgroundWatcher, Background.TwitterBackgroundWatcher>();
+            services.AddHostedService<Background.TwitterBackgroundWatcherHostedService>();
 
-            services.AddSingleton<Repo.TweetRepository>();
-            services.AddSingleton<Repo.IRepository<Repo.TweetRecord>, Repo.TweetRepository>(
-                provider => provider.GetRequiredService<Repo.TweetRepository>());
+            services.AddSingleton<Core.Interfaces.ITweetRepository, Repo.TweetRepository>();
+
+            services.AddSingleton<Core.Interfaces.IKeywordRepository, Repo.KeywordRepository>();
 
             services.AddSwaggerGen(c =>
             {

@@ -14,7 +14,8 @@ namespace VOST.TwitterWatcher.Background.Tests
         [Fact, Trait("Category", "Integration")]
         public async Task Test1()
         {
-            var repoMock = new Mock<Repo.IRepository<Repo.TweetRecord>>(MockBehavior.Strict);
+            var repoMock = new Mock<ITweetRepository>(MockBehavior.Strict);
+            var keywordRepoMock = new Mock<IKeywordRepository>(MockBehavior.Strict);
 
             ITwitterBackgroundWatcher sut = new TwitterBackgroundWatcher(
                 Options.Create(new Core.Configuration.TwitterApiConfiguration
@@ -25,6 +26,7 @@ namespace VOST.TwitterWatcher.Background.Tests
                     AccessTokenSecret = "MJxdxeiA4B4AL4HNQOkwq3yqOJGdjyQO4rXh7xP0r57qt"
                 }),
                 repoMock.Object,
+                keywordRepoMock.Object,
                 new LoggerStub<TwitterBackgroundWatcher>());
 
             await sut.Subscribe();
