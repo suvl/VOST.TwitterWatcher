@@ -35,17 +35,24 @@ export class TweetList extends Component {
                             <th>Time</th>
                             <th>Tweet</th>
                             <th>User</th>
-                            <th>Loc.</th>
+                            <th>Keywords</th>
+                            <th>Location</th>
+                            <th></th>
                         </tr>
                     </thead>
                     <tbody>
                         {this.state.tweets.map(t => 
                             <tr key={t.id}>
-                                <td>{t.status.createdAt}</td>
-                                <td>{t.status.text}</td>
-                                <td>{t.status.user.name}</td>
-                                <td>{ t.status.place !== null && t.status.place.name !== null
-                                        ? t.status.place.name : "" }</td>
+                                <td>{t.createdAt}</td>
+                                <td>{t.text}</td>
+                                <td>{t.userHandle}</td>
+                                <td>{t.matchedKeywords.join()}</td>
+                                <td>{t.location}</td>
+                                <td>
+                                    <a href={"https://twitter.com/"+t.userHandle+"/status/"+t.id}>
+                                        <i class="fab fa-twitter"/>
+                                    </a>
+                                </td>
                             </tr>
                         )}
                     </tbody>

@@ -3,13 +3,14 @@ using System.Threading;
 using System.Threading.Tasks;
 using LinqToTwitter;
 using System.Linq;
+using System.Reactive.Linq;
 using Microsoft.Extensions.Logging;
 using Polly;
 using Microsoft.Extensions.Options;
 using VOST.TwitterWatcher.Repo;
-using System.Collections.Generic;
-using VOST.TwitterWatcher.Core.Mapping;
-using System.Text;
+
+using Tweetinvi;
+using Tweetinvi.Models;
 
 namespace VOST.TwitterWatcher.Background
 {
@@ -23,6 +24,8 @@ namespace VOST.TwitterWatcher.Background
         private readonly CancellationTokenSource _cts = new CancellationTokenSource();
         private readonly IAuthorizer _authorizer;
         private readonly ILogger _logger;
+
+        private readonly ITwitterCredentials credentials;
 
         private readonly object _lock = new object();
         private TwitterContext _context;
@@ -45,11 +48,10 @@ namespace VOST.TwitterWatcher.Background
         }
 
         private volatile IDisposable _currentSubscription = null;
+        private volatile Tweetinvi.Streaming.IFilteredStream _stream = null;
 
         private readonly Core.Interfaces.ITweetRepository _repository;
         private readonly Core.Interfaces.IKeywordRepository _keywordRepository;
-
-        private readonly string _keywords;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="TwitterBackgroundWatcher"/> class.
@@ -88,7 +90,13 @@ namespace VOST.TwitterWatcher.Background
                 }
             };
 
-            _keywords = config.FollowedKeywords;
+            credentials = new TwitterCredentials(
+                consumerKey: config.ConsumerKey, 
+                consumerSecret: config.ConsumerSecret,
+                accessToken: config.AccessToken,
+                accessTokenSecret: config.AccessTokenSecret);
+
+            RateLimit.RateLimitTrackerMode = RateLimitTrackerMode.TrackAndAwait;
             
             _logger.LogInformation("{0} .ctor", nameof(TwitterBackgroundWatcher));
         }
@@ -117,7 +125,88 @@ namespace VOST.TwitterWatcher.Background
                     return waitTime.TotalMinutes > 5.0 ? TimeSpan.FromMinutes(5.0) : waitTime;
                 }, 
                 (ex,ts) => _logger.LogError(ex, "Error on RefreshSubscription, waiting {0} to retry", ts))
-                .ExecuteAsync(RefreshSubscription);
+                .ExecuteAsync(NewRefreshSubscription);
+        }
+
+        private async Task NewRefreshSubscription()
+        {
+            if (_cts.IsCancellationRequested) return;
+
+            var keywords = await _keywordRepository.GetFollowedKeywords();
+
+            if (keywords.Count == 0) return;
+
+            if (_stream != null) 
+            {
+                _stream.StopStream();
+            }
+
+            _stream = Stream.CreateFilteredStream(credentials, Tweetinvi.TweetMode.Extended);
+
+            foreach (var kw in keywords)
+                _stream.AddTrack(kw.Keyword);
+
+            _stream.MatchingTweetReceived += (sender, args) => {
+                _logger.LogInformation("New Matching Tweet [Matched={0}, Tweet={1}]", args.MatchingTracks, args.Json);
+
+                var tweet = args.Tweet;
+
+                var tweetRecord = new TweetRecord 
+                {
+                    MatchedKeywords = args.MatchingTracks,
+                    TweetJson = args.Json,
+                    CreatedAt = tweet.CreatedAt,
+                    FavoriteCount = tweet.FavoriteCount,
+                    FullText = tweet.FullText,
+                    Id = tweet.IdStr,
+                    IsRetweet = tweet.IsRetweet,
+                    RetweetCount = tweet.RetweetCount,
+                    Text = tweet.Text,
+                    Truncated = tweet.Truncated,
+                    Location = tweet.Place?.FullName
+                };
+
+                if (tweet.CreatedBy != null)
+                {
+                    tweetRecord.User = tweet.CreatedBy.Name;
+                    tweetRecord.UserId = tweet.CreatedBy.Id;
+                    tweetRecord.UserLocation = tweet.CreatedBy.Location;
+                    tweetRecord.UserPictureUrl = tweet.CreatedBy.ProfileImageUrl400x400;
+                    tweetRecord.UserProfileUrl = tweet.CreatedBy.Url;
+                    tweetRecord.UserHandle = tweet.CreatedBy.ScreenName;
+                }
+
+                if (tweet.Coordinates != null)
+                {
+                    tweetRecord.Latitude = tweet.Coordinates.Latitude;
+                    tweetRecord.Longitude = tweet.Coordinates.Longitude;
+                }
+
+                ThreadPool.QueueUserWorkItem(_ => _repository.InsertAsync(tweetRecord, _cts.Token));
+            };
+            _stream.DisconnectMessageReceived += (s, args) => {
+                _logger.LogError("DisconnectMessageReceived={0}", args.DisconnectMessage);
+                ThreadPool.QueueUserWorkItem(_ => Task.Delay(TimeSpan.FromMinutes(2)).ContinueWith(t => NewRefreshSubscription()));
+            };
+            _stream.StreamStarted += (s, args) => {
+                _logger.LogInformation("Stream started.");
+            };
+            _stream.WarningFallingBehindDetected += (e, args) => {
+                _logger.LogWarning(
+                    "WarningFallingBehindDetected [{0} {1} {2}%]", 
+                    args.WarningMessage.Code,
+                    args.WarningMessage.Message,
+                    args.WarningMessage.PercentFull);
+            };
+            _stream.KeepAliveReceived += (e, args) => {
+                _logger.LogInformation("KeepAlive");
+            };
+            _stream.LimitReached += (e, args) => {
+                _logger.LogWarning("Limit reached (tweets not received={0})", args.NumberOfTweetsNotReceived);
+            };
+            
+            // the next awaitable does not return, so we have to make it go to a new thread
+            ThreadPool.QueueUserWorkItem(_ => _stream.StartStreamMatchingAnyConditionAsync());
         }
 
         private async Task RefreshSubscription()
@@ -132,19 +221,28 @@ namespace VOST.TwitterWatcher.Background
 
             var track = string.Join(",", keywords.Select(k => k.Keyword));
 
-            var observable = await Context.Streaming
-                .WithCancellation(_cts.Token)
-                .Where(streaming =>
-                    streaming.Type == StreamingType.Filter &&
-                    streaming.Track == track)
-                .ToObservableAsync();
+            var observable = await GetObservable(track);
 
             _logger.LogDebug("Subscribing to stream data");
 
-            _currentSubscription = observable.Subscribe(
+            _currentSubscription = observable
+                .Subscribe(
                 async stream => await HandleStream(stream),
+                ex => {
+                    _logger.LogError(ex, "Observable.OnError");
+                    ThreadPool.QueueUserWorkItem((state) => 
+                        Task.Delay(500).ContinueWith(t => Subscribe()));
+                },
                 () => _logger.LogInformation("Stream subscription completed"));
         }
+
+        private Task<IObservable<StreamContent>> GetObservable(string trackWords)
+            => Context.Streaming
+                .WithCancellation(_cts.Token)
+                .Where(streaming =>
+                    streaming.Type == StreamingType.Filter &&
+                    streaming.Track == trackWords)
+                .ToObservableAsync();
 
         /// <summary>
         /// Stops the background tasks.
@@ -154,6 +252,7 @@ namespace VOST.TwitterWatcher.Background
         public Task StopAsync(CancellationToken cancellationToken)
         {
             _currentSubscription?.Dispose();
+            _stream?.StopStream();
             _cts.Cancel(true);
             return Task.CompletedTask;
         }
@@ -185,7 +284,6 @@ namespace VOST.TwitterWatcher.Background
 
             var record = new TweetRecord
             {
-                Status = entity
             };
 
             try

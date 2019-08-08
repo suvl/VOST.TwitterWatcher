@@ -18,10 +18,10 @@ namespace VOST.TwitterWatcher
         /// <param name="configuration">The app's configuration.</param>
         public Startup(IConfiguration configuration)
         {
-            _configuration = configuration;
+            Configuration = configuration;
         }
 
-        private IConfiguration _configuration { get; }
+        private IConfiguration Configuration { get; }
 
         /// <summary>
         /// DI configurations
@@ -38,9 +38,9 @@ namespace VOST.TwitterWatcher
             });
 
             services.Configure<Core.Configuration.TwitterApiConfiguration>(
-                _configuration.GetSection("TwitterApi"));
+                Configuration.GetSection("TwitterApi"));
             services.Configure<Core.Configuration.MongoDbClientConfiguration>(
-                _configuration.GetSection("MongoDb"));
+                Configuration.GetSection("MongoDb"));
 
             services.AddSingleton<Core.Interfaces.ITwitterBackgroundWatcher, Background.TwitterBackgroundWatcher>();
             services.AddHostedService<Background.TwitterBackgroundWatcherHostedService>();
