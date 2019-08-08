@@ -46,7 +46,7 @@ export class TweetList extends Component {
                                 <td>{t.createdAt}</td>
                                 <td>{t.text}</td>
                                 <td>{t.userHandle}</td>
-                                <td>{t.matchedKeywords.join()}</td>
+                                <td>{t.matchedKeywords.join(", ")}</td>
                                 <td>{t.location}</td>
                                 <td>
                                     <a href={"https://twitter.com/"+t.userHandle+"/status/"+t.id}>

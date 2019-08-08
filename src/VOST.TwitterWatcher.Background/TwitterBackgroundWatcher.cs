@@ -206,7 +206,7 @@ namespace VOST.TwitterWatcher.Background
             };
             
             // the next awaitable does not return, so we have to make it go to a new thread
-            ThreadPool.QueueUserWorkItem(_ => _stream.StartStreamMatchingAnyConditionAsync());
+            ThreadPool.QueueUserWorkItem(async _ => await _stream.StartStreamMatchingAnyConditionAsync());
         }
 
         private async Task RefreshSubscription()
