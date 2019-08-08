@@ -24,7 +24,7 @@ export class FollowedKeywords extends Component {
 
     toggle (event, keyword) {
         event.preventDefault();
-        fetch("/api/v1/keywords/toggle?keyword=" + encodeURI(keyword), {
+        fetch("/api/v1/keywords/toggle?keyword=" + encodeURIComponent (keyword), {
             method: 'PATCH',
             headers: {
                 'Accept': 'application/json'
