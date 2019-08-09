@@ -9,9 +9,16 @@ export class TweetList extends Component {
             page: 0,
             pageSize: 100
         }
+
+        this.goForward = this.goForward.bind(this);
+        this.goBackwards = this.goBackwards.bind(this);
     }
 
     componentDidMount() {
+        this.update();
+    }
+
+    update () {
         let url = "/api/v1/tweets?page=" +
                     this.state.page +
                     "&pageSize=" +
@@ -24,12 +31,25 @@ export class TweetList extends Component {
             });
     }
 
+    goForward (e) {
+        e.preventDefault();
+        this.setState({page: ++ this.state.page, loading: true})
+        this.update();
+    }
+
+    goBackwards (e) {
+        e.preventDefault();
+        this.setState({page: -- this.state.page, loading: true})
+        this.update();
+    }
+
     render () {
         if (this.state.loading)
         {
             return <p>Loading...</p>;
         } else {
-            return <table className='table table-striped'>
+            return <div>
+                <table className='table table-striped'>
                     <thead>
                         <tr>
                             <th>Time</th>
@@ -50,13 +70,19 @@ export class TweetList extends Component {
                                 <td>{t.location}</td>
                                 <td>
                                     <a href={"https://twitter.com/"+t.userHandle+"/status/"+t.id}>
-                                        <i class="fab fa-twitter"/>
+                                        <i className="fab fa-twitter"/>
                                     </a>
                                 </td>
                             </tr>
                         )}
                     </tbody>
                 </table>
+                <div className="m-auto">
+                    { this.state.page != 0 && <a href="#" onClick={this.goBackwards} >« </a> }
+                    {this.state.page}
+                    <a href="#" onClick={this.goForward} > »</a>
+                </div>
+            </div>
         }
     }
 }
