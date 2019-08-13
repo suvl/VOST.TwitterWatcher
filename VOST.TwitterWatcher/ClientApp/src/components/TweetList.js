@@ -7,15 +7,18 @@ export class TweetList extends Component {
             loading: true, 
             tweets: [],
             page: 0,
-            pageSize: 100
+            pageSize: 100,
+            autoUpdate: true
         }
 
         this.goForward = this.goForward.bind(this);
         this.goBackwards = this.goBackwards.bind(this);
+        this.toggleRefresh = this.toggleRefresh.bind(this);
     }
 
     componentDidMount() {
         this.update();
+        setInterval(() => this.state.autoUpdate && this.update(), 5000);
     }
 
     update () {
@@ -33,14 +36,19 @@ export class TweetList extends Component {
 
     goForward (e) {
         e.preventDefault();
-        this.setState({page: ++ this.state.page, loading: true})
+        this.setState({page: this.state.page + 1, loading: true});
         this.update();
     }
 
     goBackwards (e) {
         e.preventDefault();
-        this.setState({page: -- this.state.page, loading: true})
+        this.setState({page: this.state.page - 1, loading: true});
         this.update();
+    }
+
+    toggleRefresh (e) {
+        e.preventDefault();
+        this.setState({autoUpdate: !this.state.autoUpdate});
     }
 
     render () {
@@ -77,10 +85,15 @@ export class TweetList extends Component {
                         )}
                     </tbody>
                 </table>
-                <div className="m-auto">
-                    { this.state.page != 0 && <a href="#" onClick={this.goBackwards} >« </a> }
-                    {this.state.page}
-                    <a href="#" onClick={this.goForward} > »</a>
+                <div className="mx-auto">
+                    <div>
+                        { this.state.page !== 0 && <button className="btn btn-link" onClick={this.goBackwards} >« </button> }
+                        {this.state.page}
+                        <button className="btn btn-link" onClick={this.goForward} > »</button>
+                    </div>
+                    <div>
+                        <button className="btn btn-link" onClick={this.toggleRefresh}>toggle auto updates</button>
+                    </div>
                 </div>
             </div>
         }

@@ -1,9 +1,7 @@
 ﻿using System;
 using System.Threading;
 using System.Threading.Tasks;
-using LinqToTwitter;
 using System.Linq;
-using System.Reactive.Linq;
 using Microsoft.Extensions.Logging;
 using Polly;
 using Microsoft.Extensions.Options;
@@ -22,48 +20,25 @@ namespace VOST.TwitterWatcher.Background
     public sealed class TwitterBackgroundWatcher : Core.Interfaces.ITwitterBackgroundWatcher, IDisposable
     {
         private readonly CancellationTokenSource _cts = new CancellationTokenSource();
-        private readonly IAuthorizer _authorizer;
         private readonly ILogger _logger;
 
-        private readonly ITwitterCredentials credentials;
+        private readonly ITwitterCredentials _credentials;
 
-        private readonly object _lock = new object();
-        private TwitterContext _context;
-        private TwitterContext Context
-        {
-            get
-            {
-                if (_context == null)
-                {
-                    lock (_lock)
-                    {
-                        if (_context == null)
-                        {
-                            _context = new TwitterContext(_authorizer);
-                        }
-                    }
-                }
-                return _context;
-            }
-        }
-
-        private volatile IDisposable _currentSubscription = null;
-        private volatile Tweetinvi.Streaming.IFilteredStream _stream = null;
+        private volatile Tweetinvi.Streaming.IFilteredStream _stream;
 
         private readonly Core.Interfaces.ITweetRepository _repository;
         private readonly Core.Interfaces.IKeywordRepository _keywordRepository;
 
         /// <summary>
-        /// Initializes a new instance of the <see cref="TwitterBackgroundWatcher"/> class.
+        /// Initializes a new instance of the <see cref="TwitterBackgroundWatcher" /> class.
         /// </summary>
-        /// <param name="key">The Twitter API key.</param>
-        /// <param name="secret">The Twitter API secret.</param>
+        /// <param name="twitterApiConfiguration">The twitter API configuration.</param>
+        /// <param name="repository">The repository.</param>
+        /// <param name="keywordRepository">The keyword repository.</param>
         /// <param name="logger">The logger.</param>
-        /// <exception cref="ArgumentNullException">
-        /// twitterApiConfiguration.ValidateAndThrow()
+        /// <exception cref="ArgumentNullException">twitterApiConfiguration.ValidateAndThrow()
         /// or
-        /// logger
-        /// </exception>
+        /// logger</exception>
         public TwitterBackgroundWatcher(
             IOptions<Core.Configuration.TwitterApiConfiguration> twitterApiConfiguration,
             Core.Interfaces.ITweetRepository repository,
@@ -79,18 +54,7 @@ namespace VOST.TwitterWatcher.Background
             var config = twitterApiConfiguration.Value;
             config.ValidateAndThrow();
 
-            _authorizer = new SingleUserAuthorizer
-            {
-                CredentialStore = new SingleUserInMemoryCredentialStore
-                {
-                    ConsumerKey = config.ConsumerKey,
-                    ConsumerSecret = config.ConsumerSecret,
-                    AccessToken = config.AccessToken,
-                    AccessTokenSecret = config.AccessTokenSecret
-                }
-            };
-
-            credentials = new TwitterCredentials(
+            _credentials = new TwitterCredentials(
                 consumerKey: config.ConsumerKey, 
                 consumerSecret: config.ConsumerSecret,
                 accessToken: config.AccessToken,
@@ -115,6 +79,10 @@ namespace VOST.TwitterWatcher.Background
             return Subscribe();
         }
 
+        /// <summary>
+        /// Starts the subscription.
+        /// </summary>
+        /// <returns>The subscription's Task.</returns>
         public Task Subscribe()
         {
             return Policy
@@ -136,12 +104,9 @@ namespace VOST.TwitterWatcher.Background
 
             if (keywords.Count == 0) return;
 
-            if (_stream != null) 
-            {
-                _stream.StopStream();
-            }
+            _stream?.StopStream();
 
-            _stream = Stream.CreateFilteredStream(credentials, Tweetinvi.TweetMode.Extended);
+            _stream = Stream.CreateFilteredStream(_credentials, TweetMode.Extended);
 
             foreach (var kw in keywords)
                 _stream.AddTrack(kw.Keyword);
@@ -151,9 +116,14 @@ namespace VOST.TwitterWatcher.Background
 
                 var tweet = args.Tweet;
 
+                var matched = Enumerable.Empty<string>()
+                    .Union(args.MatchingTracks)
+                    .Union(args.QuotedTweetMatchingTracks)
+                    .ToArray();
+
                 var tweetRecord = new TweetRecord 
                 {
-                    MatchedKeywords = args.MatchingTracks,
+                    MatchedKeywords = matched,
                     TweetJson = args.Json,
                     CreatedAt = tweet.CreatedAt,
                     FavoriteCount = tweet.FavoriteCount,
@@ -186,7 +156,12 @@ namespace VOST.TwitterWatcher.Background
             };
             _stream.DisconnectMessageReceived += (s, args) => {
                 _logger.LogError("DisconnectMessageReceived={0}", args.DisconnectMessage);
-                ThreadPool.QueueUserWorkItem(_ => Task.Delay(TimeSpan.FromMinutes(2)).ContinueWith(t => NewRefreshSubscription()));
+                // on disconnect, wait two minutes and connect again.
+                ThreadPool.QueueUserWorkItem(async _ =>
+                {
+                    await Task.Delay(TimeSpan.FromMinutes(2));
+                    await Subscribe();
+                });
             };
             _stream.StreamStarted += (s, args) => {
                 _logger.LogInformation("Stream started.");
@@ -209,41 +184,6 @@ namespace VOST.TwitterWatcher.Background
             ThreadPool.QueueUserWorkItem(async _ => await _stream.StartStreamMatchingAnyConditionAsync());
         }
 
-        private async Task RefreshSubscription()
-        {
-            _currentSubscription?.Dispose();
-
-            if (_cts.IsCancellationRequested) return;
-
-            var keywords = await _keywordRepository.GetFollowedKeywords();
-
-            if (keywords.Count == 0) return;
-
-            var track = string.Join(",", keywords.Select(k => k.Keyword));
-
-            var observable = await GetObservable(track);
-
-            _logger.LogDebug("Subscribing to stream data");
-
-            _currentSubscription = observable
-                .Subscribe(
-                async stream => await HandleStream(stream),
-                ex => {
-                    _logger.LogError(ex, "Observable.OnError");
-                    ThreadPool.QueueUserWorkItem((state) => 
-                        Task.Delay(500).ContinueWith(t => Subscribe()));
-                },
-                () => _logger.LogInformation("Stream subscription completed"));
-        }
-
-        private Task<IObservable<StreamContent>> GetObservable(string trackWords)
-            => Context.Streaming
-                .WithCancellation(_cts.Token)
-                .Where(streaming =>
-                    streaming.Type == StreamingType.Filter &&
-                    streaming.Track == trackWords)
-                .ToObservableAsync();
-
         /// <summary>
         /// Stops the background tasks.
         /// </summary>
@@ -251,49 +191,9 @@ namespace VOST.TwitterWatcher.Background
         /// <returns>The stopping async task.</returns>
         public Task StopAsync(CancellationToken cancellationToken)
         {
-            _currentSubscription?.Dispose();
             _stream?.StopStream();
             _cts.Cancel(true);
             return Task.CompletedTask;
-        }
-
-        /// <summary>
-        /// Handles the stream result coming from twitter.
-        /// </summary>
-        /// <param name="streamContent">Content of the stream.</param>
-        /// <returns>The async processing task.</returns>
-        private Task HandleStream(StreamContent streamContent)
-        {
-            if (streamContent.EntityType == StreamEntityType.Status)
-            {
-                return HandleStatus(streamContent.Entity as Status);
-            }
-
-            return Task.CompletedTask;
-        }
-
-        /// <summary>
-        /// Handles the twitter status update.
-        /// </summary>
-        /// <param name="entity">The status update's content.</param>
-        /// <returns>The processing task.</returns>
-        private async Task HandleStatus(Status entity)
-        {
-            // save this thing at the TSDB
-            _logger.LogInformation("Received tweet | {0}", entity.Text);
-
-            var record = new TweetRecord
-            {
-            };
-
-            try
-            {
-                await _repository.InsertAsync(record);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "unable to save tweet status to db.");
-            }
         }
 
         /// <summary>
@@ -301,7 +201,6 @@ namespace VOST.TwitterWatcher.Background
         /// </summary>
         public void Dispose()
         {
-            _context?.Dispose();
             _cts?.Dispose();
         }
     }

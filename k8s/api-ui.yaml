@@ -1,0 +1,70 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tw-api
+  namespace: vost-tw
+spec:
+  selector:
+    matchLabels:
+      app: tw-api
+  template:
+    metadata:
+      labels:
+        app: tw-api
+    spec:
+      containers:
+      - name: tw-api
+        image: suvl/vost-tw:0.10.2
+        resources:
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+          requests:
+            memory: "128Mi"
+            cpu: "10m"
+        env:
+        - name: "MongoDb__ConnectionString"
+          value: "mongodb://mongo:27017/VOSTTwitter"
+        - name: "Logging__LogLevel__Default"
+          value: "Information"
+        - name: "PATH"
+          value: "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+        - name: "ASPNETCORE_URLS"
+          value: "http://+:80"
+        - name: "DOTNET_RUNNING_IN_CONTAINER"
+          value: "true"
+        - name: "DOTNET_SYSTEM_GLOBALIZATION_INVARIANT"
+          value: "true"
+        - name: "ASPNETCORE_VERSION"
+          value: "2.2.6"
+        - name: "ASPNETCORE_ENVIRONMENT"
+          value: "Production"
+        ports:
+        - containerPort: 80
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: tw-api-service
+  namespace: vost-tw
+spec:
+  selector:
+    app: tw-api
+  ports:
+  - port: 80
+    targetPort: 80
+---
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+ name: tw-api-ingress
+ namespace: vost-tw
+spec:
+ rules:
+ - host: vost-tw.jtsoar.es
+   http:
+      paths:
+      - path: /
+        backend:
+          serviceName: tw-api-service
+          servicePort: 80
