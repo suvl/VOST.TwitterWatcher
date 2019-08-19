@@ -13,6 +13,7 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.App" />
     <PackageReference Include="Microsoft.AspNetCore.Razor.Design" Version="2.2.0" PrivateAssets="All" />
+    <PackageReference Include="NLog.Web.AspNetCore" Version="4.8.4" />
     <PackageReference Include="Swashbuckle.AspNetCore" Version="4.0.1" />
     <PackageReference Include="System.Reactive.Core" Version="4.1.6" />
   </ItemGroup>
@@ -28,6 +29,12 @@
     <ProjectReference Include="..\src\VOST.TwitterWatcher.Background\VOST.TwitterWatcher.Background.csproj" />
     <ProjectReference Include="..\src\VOST.TwitterWatcher.Core\VOST.TwitterWatcher.Core.csproj" />
     <ProjectReference Include="..\src\VOST.TwitterWatcher.Repo\VOST.TwitterWatcher.Repo.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Update="nlog.config">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
   </ItemGroup>
 
   <Target Name="DebugEnsureNodeEnv" BeforeTargets="Build" Condition=" '$(Configuration)' == 'Debug' And !Exists('$(SpaRoot)node_modules') ">
