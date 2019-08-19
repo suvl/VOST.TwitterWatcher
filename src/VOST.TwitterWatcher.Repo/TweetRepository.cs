@@ -1,4 +1,5 @@
-﻿using Microsoft.Extensions.Logging;
+﻿using System;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using System.Collections.Generic;
 using System.Threading.Tasks;
@@ -12,7 +13,7 @@ namespace VOST.TwitterWatcher.Repo
     /// <summary>
     /// The Tweet record repository.
     /// </summary>
-    /// <seealso cref="VOST.TwitterWatcher.Repo.MongoRepository{VOST.TwitterWatcher.Repo.TweetRecord}" />
+    /// <seealso cref="TweetRecord" />
     public class TweetRepository : MongoRepository<TweetRecord>, ITweetRepository
     {
         /// <summary>
@@ -59,6 +60,21 @@ namespace VOST.TwitterWatcher.Repo
                 .Limit(pageSize);
 
             return await find.ToListAsync();
+        }
+
+        /// <summary>
+        /// Gets all records that match a keyword.
+        /// </summary>
+        /// <param name="keyword">The keyword.</param>
+        /// <returns>The collection of tweet records.</returns>
+        /// <exception cref="ArgumentNullException">keyword</exception>
+        public async Task<ICollection<TweetRecord>> GetAllRecordsByKeyword(string keyword)
+        {
+            if (string.IsNullOrWhiteSpace(keyword)) throw new ArgumentNullException(nameof(keyword));
+
+            return await Collection
+                .Find(Filter.All(r => r.MatchedKeywords, new []{keyword}))
+                .ToListAsync();
         }
     }
 }
